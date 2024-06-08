@@ -10,7 +10,7 @@ def install_and_import(package):
     finally:
         globals()[package] = __import__(package)
 
-if "__name__" == "__main__":
+if __name__ == "__main__":
   print("Installing dependencies...")
   install_and_import('faster_whisper')
   print("Dependencies installed.")

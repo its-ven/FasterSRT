@@ -1,18 +1,3 @@
-import subprocess
-import sys
-
-def install_and_import(package):
-    try:
-        __import__(package)
-    except ImportError:
-        subprocess.check_call([sys.executable, "-m", "pip", "install", package])
-    finally:
-        globals()[package] = __import__(package)
-
-install_and_import('faster_whisper')
-install_and_import('pathlib')
-
-
 from faster_whisper import WhisperModel, utils
 from pathlib import Path
 
@@ -94,7 +79,7 @@ def transcribe_video(video_path: str, split_on_word: bool = False):
             file.write(timestamp + "\n")
     print("Transcription complete!")
 
-if __name__ == "__main__":
+def start():
     path = input("Provide the path to the video/audio:\n> ")
     split = input("Do you want to split per-word? Y/N:\n> ")
     if split.casefold() == "y":

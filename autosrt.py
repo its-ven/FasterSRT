@@ -13,20 +13,21 @@ def format_timestamp(start, end):
     end_formatted = format_time(end)
     return f"{start_formatted} --> {end_formatted}"
 
-def generate_subtitles(segments, word_timestamps):
+def generate_subtitles(segments, word_timestamps, keep_gaps):
     timestamps = []
     if word_timestamps:
         words = [word for segment in segments for word in segment.words]
         word_counter = 1
+        previous_end_time = 0
         for word in words:
             split_words = word.word.strip().split()
             for split_word in split_words:
-                start_time = word.start if split_word == split_words[0] else None
-                end_time = word.end if split_word == split_words[-1] else None
-                start_formatted = format_timestamp(start_time, word.end) if start_time else format_timestamp(word.start, word.end)
-                end_formatted = format_timestamp(word.start, end_time) if end_time else format_timestamp(word.start, word.end)
-                timestamps.append(f"{word_counter}\n{start_formatted} --> {end_formatted}\n{split_word}\n")
+                start_time = previous_end_time if not keep_gaps else word.start
+                end_time = word.end if split_word == split_words[-1] else (previous_end_time + 0.1 if not keep_gaps else word.end)
+                timestamp = format_timestamp(start_time, end_time)
+                timestamps.append(f"{word_counter}\n{timestamp}\n{split_word}\n")
                 word_counter += 1
+                previous_end_time = end_time
     else:
         for i, segment in enumerate(segments[:-1]):
             next_segment_start = segments[i + 1].start
@@ -36,27 +37,7 @@ def generate_subtitles(segments, word_timestamps):
 
     return timestamps
 
-def transcribe_video(video_path: str, split_on_word: bool = False):
-    # Automatically selects between CUDA and CPU.
-    # Change model_id based on precision. Requires higher specs:
-
-    #model_id = "tiny.en"
-    #model_id = "tiny"
-    #model_id = "base.en"
-    #model_id = "base"
-    #model_id = "small.en"
-    #model_id = "small"
-    #model_id = "medium.en"
-    #model_id = "medium"
-    #model_id = "large-v1"
-    #model_id = "large-v2"
-    #model_id = "large-v3"
-    #model_id = "large"
-    #model_id = "distil-large-v2"
-    #model_id = "distil-medium.en"
-    #model_id = "distil-small.en"
-    model_id = "small"
-    
+def transcribe_video(video_path: str, model_id: str, split_on_word: bool = False, keep_gaps: bool = False):
     whisper_dir = Path(__file__).resolve().parent / "whisper"
     model_dir = Path(f"{whisper_dir}/model_{model_id}")
     model_file = Path(f"{model_dir}/model.bin")
@@ -70,7 +51,7 @@ def transcribe_video(video_path: str, split_on_word: bool = False):
     print("Transcribing...")
     segments, _ = model.transcribe(video_path, word_timestamps=split_on_word)
     
-    timestamps = generate_subtitles(segments, split_on_word)
+    timestamps = generate_subtitles(segments, split_on_word, keep_gaps)
     
     filename = Path(video_path).stem
     output = str(Path(__file__).resolve().parent / "transcribed") + f"/{filename}.srt"
@@ -79,10 +60,50 @@ def transcribe_video(video_path: str, split_on_word: bool = False):
             file.write(timestamp + "\n")
     print("Transcription complete!")
 
+def get_available_models():
+    whisper_dir = Path(__file__).resolve().parent / "whisper"
+    available_models = []
+    for model_dir in whisper_dir.iterdir():
+        if model_dir.is_dir() and (model_dir / "model.bin").exists():
+            available_models.append(model_dir.name.replace("model_", ""))
+    return available_models
+
 def start():
-    path = input("Provide the path to the video/audio:\n> ")
-    split = input("Do you want to split per-word? Y/N:\n> ")
-    if split.casefold() == "y":
-        transcribe_video(path, True)
+    available_models = get_available_models()
+    
+    print("Available models:")
+    for i, model in enumerate(available_models):
+        print(f"{i+1}. {model}")
+    print("0. Download a new model")
+
+    choice = int(input("Select a model by entering the corresponding number:\n> "))
+    
+    if choice == 0:
+        # Models available for download
+        all_models = [
+            "tiny.en", "tiny", "base.en", "base", "small.en", "small", 
+            "medium.en", "medium", "large-v1", "large-v2", "large-v3", 
+            "large", "distil-large-v2", "distil-medium.en", "distil-small.en", 
+            "distil-large-v3"
+        ]
+        undownloaded_models = [model for model in all_models if model not in available_models]
+        
+        print("Models available:")
+        for i, model in enumerate(undownloaded_models):
+            print(f"{i+1}. {model}")
+        
+        new_model_choice = int(input("Select a model to download.\nLarger is more precise but requires higher specs:\n> "))
+        selected_model = undownloaded_models[new_model_choice - 1]
     else:
-        transcribe_video(path)
+        selected_model = available_models[choice - 1]
+
+    path = input("Provide the path to the video/audio:\n> ")
+    split = input("Split per-word? Y/N:\n> ")
+    keep_gaps = input("Keep gaps between subtitles? Y/N:\n> ")
+    
+    transcribe_video(
+        video_path=path, 
+        model_id=selected_model, 
+        split_on_word=(split.casefold() == "y"), 
+        keep_gaps=(keep_gaps.casefold() == "y")
+    )

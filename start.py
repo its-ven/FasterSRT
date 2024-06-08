@@ -6,13 +6,13 @@ def install_and_import(package):
     try:
         __import__(package)
     except ImportError:
+        print("Installing dependencies...")
         subprocess.check_call([sys.executable, "-m", "pip", "install", package])
+        print("Dependencies installed.")
     finally:
         globals()[package] = __import__(package)
 
 if __name__ == "__main__":
-  print("Installing dependencies...")
   install_and_import('faster_whisper')
-  print("Dependencies installed.")
   import autosrt
   autosrt.start()
